@@ -1,0 +1,23 @@
+{
+  "name": "catalogforge-worker",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "cleanup": "tsx src/cleanup.ts",
+    "test": "tsx --test test/pipeline.test.ts"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "bullmq": "^5.16.0",
+    "dotenv": "^16.4.7",
+    "pdf-lib": "^1.17.1",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.2.2"
+  }
+}
