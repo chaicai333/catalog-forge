@@ -42,6 +42,7 @@ type ExportSettings = {
     backgroundColor?: string;
     backgroundOpacity?: number;
     textColor?: string;
+    currencyPrefix?: string;
   };
   collectionIds?: string[];
   filters?: {
@@ -781,7 +782,10 @@ async function buildImagesZip(params: {
     }
     try {
       const sourceBytes = await localStorageAdapter.read(record.localCoverPath);
-      const priceText = formatPrice(record.price);
+      const priceText = formatPrice(
+        record.price,
+        params.settings.priceOverlay?.currencyPrefix
+      );
       const extension = path.extname(record.localCoverPath);
       const outputBytes = await applyPriceOverlay({
         bytes: sourceBytes,
@@ -969,7 +973,7 @@ async function buildPdf(params: {
   const pdf = await PDFDocument.create();
   let font = await pdf.embedFont(StandardFonts.Helvetica);
   try {
-    const fontPath = path.resolve(process.cwd(), "assets/DejaVuSans.ttf");
+    const fontPath = path.resolve(process.cwd(), "worker/assets/DejaVuSans.ttf");
     const fontBytes = await fsPromises.readFile(fontPath);
     pdf.registerFontkit(fontkit);
     font = await pdf.embedFont(fontBytes);
@@ -979,6 +983,7 @@ async function buildPdf(params: {
 
   const pageSize = params.settings.pageSize ?? "A4";
   const [pageWidth, pageHeight] = pageSize === "LETTER" ? [612, 792] : [595, 842];
+  const currencyPrefix = params.settings.priceOverlay?.currencyPrefix;
 
   const layout = params.settings.layoutType ?? "GRID";
   const columns = params.settings.gridColumns ?? 3;
@@ -1010,7 +1015,8 @@ async function buildPdf(params: {
         font,
         pageWidth,
         pageHeight,
-        jobId: params.jobId
+        jobId: params.jobId,
+        currencyPrefix
       });
     }
   } else {
@@ -1046,7 +1052,8 @@ async function buildPdf(params: {
             y,
             width: cellWidth,
             height: cellHeight,
-            jobId: params.jobId
+            jobId: params.jobId,
+            currencyPrefix
           });
           index += 1;
         }
@@ -1105,6 +1112,7 @@ async function drawOnePerPage(params: {
   pageWidth: number;
   pageHeight: number;
   jobId: string;
+  currencyPrefix?: string;
 }) {
   const { page, record, font, pageWidth, pageHeight } = params;
   const margin = 40;
@@ -1129,7 +1137,7 @@ async function drawOnePerPage(params: {
     color: rgb(0.1, 0.1, 0.1)
   });
 
-  const price = formatPrice(record.price);
+  const price = formatPrice(record.price, params.currencyPrefix);
   if (price) {
     page.drawText(price, {
       x: margin,
@@ -1151,6 +1159,7 @@ async function drawGridCell(params: {
   width: number;
   height: number;
   jobId: string;
+  currencyPrefix?: string;
 }) {
   const { page, record, font, x, y, width, height } = params;
   const padding = 12;
@@ -1174,7 +1183,7 @@ async function drawGridCell(params: {
     color: rgb(0.1, 0.1, 0.1)
   });
 
-  const price = formatPrice(record.price);
+  const price = formatPrice(record.price, params.currencyPrefix);
   if (price) {
     page.drawText(price, {
       x: x + padding,
@@ -1233,16 +1242,18 @@ async function drawImageOrPlaceholder(params: {
 }
 
 export function formatPrice(
-  price: ProductRecord["price"]
+  price: ProductRecord["price"],
+  currencyPrefix?: string
 ): string | null {
   if (!price) return null;
-  if (typeof price === "string") return `$${price}`;
+  const prefix = currencyPrefix ?? "$";
+  if (typeof price === "string") return `${prefix}${price}`;
   if ("min" in price && "max" in price) {
-    return `$${price.min} - $${price.max}`;
+    return `${prefix}${price.min} - ${prefix}${price.max}`;
   }
   if ("variants" in price) {
     const first = price.variants[0];
-    return first?.price ? `$${first.price}` : null;
+    return first?.price ? `${prefix}${first.price}` : null;
   }
   return null;
 }

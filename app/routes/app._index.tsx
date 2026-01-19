@@ -78,6 +78,7 @@ export default function Index() {
   const [overlayBgColor, setOverlayBgColor] = useState("#000000");
   const [overlayBgOpacity, setOverlayBgOpacity] = useState(0.55);
   const [overlayTextColor, setOverlayTextColor] = useState("#ffffff");
+  const [overlayCurrencyPrefix, setOverlayCurrencyPrefix] = useState("$");
   const previewRef = useRef<HTMLDivElement | null>(null);
 
   const isSubmitting =
@@ -139,7 +140,8 @@ export default function Index() {
         rect: overlayRect,
         backgroundColor: overlayBgColor,
         backgroundOpacity: overlayBgOpacity,
-        textColor: overlayTextColor
+        textColor: overlayTextColor,
+        currencyPrefix: overlayCurrencyPrefix
       }
     };
 
@@ -345,6 +347,13 @@ export default function Index() {
                     autoComplete="off"
                     helpText="Hex color, e.g. #ffffff"
                   />
+                  <TextField
+                    label="Currency prefix"
+                    value={overlayCurrencyPrefix}
+                    onChange={setOverlayCurrencyPrefix}
+                    autoComplete="off"
+                    helpText="Examples: $, RM, €"
+                  />
                 </FormLayout.Group>
                 <div>
                   <Text as="p">Background opacity: {Math.round(overlayBgOpacity * 100)}%</Text>
@@ -398,7 +407,7 @@ export default function Index() {
                         userSelect: "none"
                       }}
                     >
-                      $129.00
+                      {overlayCurrencyPrefix}129.00
                       <div
                         onPointerDown={(event) =>
                           startOverlayResize(event, previewRef, overlayRect, setOverlayRect)

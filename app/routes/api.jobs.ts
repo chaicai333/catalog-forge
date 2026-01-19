@@ -70,6 +70,7 @@ function validatePayload(payload: unknown) {
         backgroundColor?: string;
         backgroundOpacity?: number;
         textColor?: string;
+        currencyPrefix?: string;
       }
     | undefined;
 
@@ -110,6 +111,12 @@ function validatePayload(payload: unknown) {
     }
     if (!isValidHexColor(priceOverlay.textColor)) {
       errors.push("Price overlay text color must be a hex color.");
+    }
+    if (
+      priceOverlay.currencyPrefix !== undefined &&
+      (typeof priceOverlay.currencyPrefix !== "string" || priceOverlay.currencyPrefix.length > 5)
+    ) {
+      errors.push("Price overlay currency prefix must be 5 characters or fewer.");
     }
     const opacity = priceOverlay.backgroundOpacity;
     if (typeof opacity !== "number" || Number.isNaN(opacity) || opacity < 0 || opacity > 1) {
