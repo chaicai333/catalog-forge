@@ -910,7 +910,7 @@ function buildPriceOverlaySvg(params: {
   </defs>
   <rect x="${params.overlayX}" y="${params.overlayY}" width="${params.overlayWidth}" height="${params.overlayHeight}" fill="${overlayFill}" />
   <text x="${textX}" y="${textY}" dominant-baseline="middle" text-anchor="middle"
-    font-family="Arial, Helvetica, sans-serif" font-size="${params.fontSize}" font-weight="600" fill="${textColor}"
+    font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="${params.fontSize}" font-weight="600" fill="${textColor}"
     textLength="${textMaxWidth}" lengthAdjust="spacingAndGlyphs" clip-path="url(#${clipId})">
     ${safeText}
   </text>
