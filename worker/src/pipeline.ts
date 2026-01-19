@@ -5,6 +5,7 @@ import fs from "node:fs";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
 import archiver from "archiver";
+import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb, degrees, StandardFonts } from "pdf-lib";
 import sharp from "sharp";
 import { localStorageAdapter, storageRoot } from "../../app/storage.server";
@@ -966,7 +967,15 @@ async function buildPdf(params: {
   settings: ExportSettings;
 }) {
   const pdf = await PDFDocument.create();
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  let font = await pdf.embedFont(StandardFonts.Helvetica);
+  try {
+    const fontPath = path.resolve(process.cwd(), "worker/assets/DejaVuSans.ttf");
+    const fontBytes = await fsPromises.readFile(fontPath);
+    pdf.registerFontkit(fontkit);
+    font = await pdf.embedFont(fontBytes);
+  } catch (error) {
+    console.warn("custom_font_failed", { error: String(error) });
+  }
 
   const pageSize = params.settings.pageSize ?? "A4";
   const [pageWidth, pageHeight] = pageSize === "LETTER" ? [612, 792] : [595, 842];
