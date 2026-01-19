@@ -18,7 +18,6 @@ import {
   InlineStack
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
-import { ResourcePicker } from "@shopify/app-bridge/actions";
 import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -116,27 +115,32 @@ export default function Index() {
     }
   }, [scopeType, grouping]);
 
-  const openProductPicker = () => {
-    const picker = ResourcePicker.create(shopify, {
-      resourceType: ResourcePicker.ResourceType.Product,
-      options: {
-        selectMultiple: true,
-        initialSelectionIds: selectedProducts.map((product) => ({ id: product.id }))
+  const openProductPicker = async () => {
+    const picker = (shopify as unknown as { resourcePicker?: Function }).resourcePicker;
+    if (!picker) {
+      shopify.toast.show("Resource picker is unavailable.");
+      return;
+    }
+    try {
+      const selection = await picker({
+        type: "product",
+        multiple: true,
+        selectionIds: selectedProducts.map((product) => ({
+          id: product.id
+        }))
+      });
+      if (!selection || !Array.isArray(selection)) {
+        return;
       }
-    });
-    picker.subscribe(ResourcePicker.Action.SELECT, ({ selection }) => {
       const next = selection.map((product) => ({
         id: product.id,
         title: product.title
       }));
       setSelectedProducts(next);
       setProductIds(next.map((product) => product.id));
-      picker.dispatch(ResourcePicker.Action.CLOSE);
-    });
-    picker.subscribe(ResourcePicker.Action.CANCEL, () => {
-      picker.dispatch(ResourcePicker.Action.CLOSE);
-    });
-    picker.dispatch(ResourcePicker.Action.OPEN);
+    } catch {
+      // Picker dismissed.
+    }
   };
 
   const removeSelectedProduct = (id: string) => {
