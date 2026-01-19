@@ -310,7 +310,7 @@ function buildProductQuery(settings: ExportSettings, includeDrafts: boolean) {
   }
 
   if (settings.scopeType === "PRODUCTS" && settings.productIds?.length) {
-    const ids = settings.productIds.map((id) => `id:${escapeQuery(id)}`);
+    const ids = settings.productIds.map((id) => `id:\"${escapeQuery(id)}\"`);
     clauses.push(`(${ids.join(" OR ")})`);
   }
 
@@ -1144,15 +1144,59 @@ async function drawOnePerPage(params: {
     color: rgb(0.1, 0.1, 0.1)
   });
 
-  const price = formatPrice(record.price, params.currencyPrefix);
-  if (price) {
-    page.drawText(price, {
+  const price = record.price;
+  if (price && typeof price === "object" && "variants" in price) {
+    const headerY = textY - 28;
+    page.drawText("Variants", {
       x: margin,
-      y: textY - 28,
-      size: 14,
+      y: headerY,
+      size: 12,
       font,
       color: rgb(0.2, 0.2, 0.2)
     });
+    const rows = price.variants.slice(0, 8);
+    let rowY = headerY - 18;
+    for (const variant of rows) {
+      const priceText = formatPriceValue(variant.price, params.currencyPrefix);
+      page.drawText(variant.title || "Variant", {
+        x: margin,
+        y: rowY,
+        size: 10,
+        font,
+        color: rgb(0.2, 0.2, 0.2)
+      });
+      if (priceText) {
+        const priceWidth = font.widthOfTextAtSize(priceText, 10);
+        page.drawText(priceText, {
+          x: pageWidth - margin - priceWidth,
+          y: rowY,
+          size: 10,
+          font,
+          color: rgb(0.2, 0.2, 0.2)
+        });
+      }
+      rowY -= 14;
+    }
+    if (price.variants.length > rows.length) {
+      page.drawText(`+${price.variants.length - rows.length} more variants`, {
+        x: margin,
+        y: rowY,
+        size: 9,
+        font,
+        color: rgb(0.5, 0.5, 0.5)
+      });
+    }
+  } else {
+    const priceText = formatPrice(price, params.currencyPrefix);
+    if (priceText) {
+      page.drawText(priceText, {
+        x: margin,
+        y: textY - 28,
+        size: 14,
+        font,
+        color: rgb(0.2, 0.2, 0.2)
+      });
+    }
   }
 }
 
@@ -1190,15 +1234,52 @@ async function drawGridCell(params: {
     color: rgb(0.1, 0.1, 0.1)
   });
 
-  const price = formatPrice(record.price, params.currencyPrefix);
-  if (price) {
-    page.drawText(price, {
-      x: x + padding,
-      y: y + padding,
-      size: 9,
-      font,
-      color: rgb(0.2, 0.2, 0.2)
-    });
+  const price = record.price;
+  if (price && typeof price === "object" && "variants" in price) {
+    const rows = price.variants.slice(0, 2);
+    let rowY = y + padding + 10;
+    for (const variant of rows) {
+      const priceText = formatPriceValue(variant.price, params.currencyPrefix);
+      const label = variant.title || "Variant";
+      page.drawText(label, {
+        x: x + padding,
+        y: rowY,
+        size: 8,
+        font,
+        color: rgb(0.2, 0.2, 0.2)
+      });
+      if (priceText) {
+        const priceWidth = font.widthOfTextAtSize(priceText, 8);
+        page.drawText(priceText, {
+          x: x + width - padding - priceWidth,
+          y: rowY,
+          size: 8,
+          font,
+          color: rgb(0.2, 0.2, 0.2)
+        });
+      }
+      rowY -= 10;
+    }
+    if (price.variants.length > rows.length) {
+      page.drawText(`+${price.variants.length - rows.length} more`, {
+        x: x + padding,
+        y: rowY,
+        size: 7,
+        font,
+        color: rgb(0.5, 0.5, 0.5)
+      });
+    }
+  } else {
+    const priceText = formatPrice(price, params.currencyPrefix);
+    if (priceText) {
+      page.drawText(priceText, {
+        x: x + padding,
+        y: y + padding,
+        size: 9,
+        font,
+        color: rgb(0.2, 0.2, 0.2)
+      });
+    }
   }
 }
 
@@ -1263,6 +1344,12 @@ export function formatPrice(
     return first?.price ? `${prefix}${first.price}` : null;
   }
   return null;
+}
+
+function formatPriceValue(value: string | null, currencyPrefix?: string) {
+  if (!value) return null;
+  const prefix = currencyPrefix ?? "$";
+  return `${prefix}${value}`;
 }
 
 function addDays(date: Date, days: number) {

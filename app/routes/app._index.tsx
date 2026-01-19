@@ -14,9 +14,11 @@ import {
   ChoiceList,
   Checkbox,
   Divider,
-  Banner
+  Banner,
+  InlineStack
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { ResourcePicker } from "@shopify/app-bridge/actions";
 import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -32,25 +34,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             legacyResourceId
           }
         }
-        products(first: 50, query: "status:active") {
-          nodes {
-            id
-            title
-            legacyResourceId
-          }
-        }
       }`
   );
 
   const jsonResponse = await response.json();
   const collections = jsonResponse?.data?.collections?.nodes ?? [];
-  const products = jsonResponse?.data?.products?.nodes ?? [];
 
-  return { collections, products };
+  return { collections };
 };
 
 export default function Index() {
-  const { collections, products } = useLoaderData<typeof loader>();
+  const { collections } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ jobId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -61,6 +55,7 @@ export default function Index() {
   const [includeDrafts, setIncludeDrafts] = useState(false);
   const [collectionIds, setCollectionIds] = useState<string[]>([]);
   const [productIds, setProductIds] = useState<string[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<{ id: string; title: string }[]>([]);
   const [vendorFilters, setVendorFilters] = useState("");
   const [productTypeFilters, setProductTypeFilters] = useState("");
   const [tagFilters, setTagFilters] = useState("");
@@ -120,6 +115,35 @@ export default function Index() {
       setGrouping("NONE");
     }
   }, [scopeType, grouping]);
+
+  const openProductPicker = () => {
+    const picker = ResourcePicker.create(shopify, {
+      resourceType: ResourcePicker.ResourceType.Product,
+      options: {
+        selectMultiple: true,
+        initialSelectionIds: selectedProducts.map((product) => ({ id: product.id }))
+      }
+    });
+    picker.subscribe(ResourcePicker.Action.SELECT, ({ selection }) => {
+      const next = selection.map((product) => ({
+        id: product.id,
+        title: product.title
+      }));
+      setSelectedProducts(next);
+      setProductIds(next.map((product) => product.id));
+      picker.dispatch(ResourcePicker.Action.CLOSE);
+    });
+    picker.subscribe(ResourcePicker.Action.CANCEL, () => {
+      picker.dispatch(ResourcePicker.Action.CLOSE);
+    });
+    picker.dispatch(ResourcePicker.Action.OPEN);
+  };
+
+  const removeSelectedProduct = (id: string) => {
+    const next = selectedProducts.filter((product) => product.id !== id);
+    setSelectedProducts(next);
+    setProductIds(next.map((product) => product.id));
+  };
 
   const submit = () => {
     if (watermarkEnabled && !watermarkText.trim()) {
@@ -242,23 +266,29 @@ export default function Index() {
               )}
               {scopeType === "PRODUCTS" && (
                 <>
-                  <ChoiceList
-                    title="Products"
-                    allowMultiple
-                    choices={products.map((product: { legacyResourceId: string; title: string }) => ({
-                      label: product.title,
-                      value: String(product.legacyResourceId)
-                    }))}
-                    selected={productIds}
-                    onChange={setProductIds}
-                  />
-                  {products.length === 0 && (
+                  <Button onClick={openProductPicker}>Select products</Button>
+                  {selectedProducts.length === 0 ? (
                     <Text as="p" tone="subdued">
-                      No products found. Switch scope or create products first.
+                      No products selected yet.
                     </Text>
+                  ) : (
+                    <BlockStack gap="100">
+                      {selectedProducts.map((product) => (
+                        <InlineStack key={product.id} align="space-between">
+                          <Text as="span">{product.title}</Text>
+                          <Button
+                            variant="plain"
+                            tone="critical"
+                            onClick={() => removeSelectedProduct(product.id)}
+                          >
+                            Remove
+                          </Button>
+                        </InlineStack>
+                      ))}
+                    </BlockStack>
                   )}
                   <Text as="p" tone="subdued">
-                    Manual selection shows up to 50 products. Refine in Shopify if needed.
+                    Use the Shopify picker to search and select products.
                   </Text>
                 </>
               )}
@@ -447,7 +477,8 @@ export default function Index() {
                     style={{
                       width: "100%",
                       maxWidth: `${previewSize}px`,
-                      height: `${previewSize}px`,
+                      aspectRatio: "1 / 1",
+                      height: "auto",
                       borderRadius: "12px",
                       position: "relative",
                       overflow: "hidden",
