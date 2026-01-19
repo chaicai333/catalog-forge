@@ -1,0 +1,3 @@
+catalogforge.site {
+  reverse_proxy web:3000
+}
