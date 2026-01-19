@@ -23,6 +23,7 @@ type ExportSettings = {
   scopeType?: "ALL_PRODUCTS" | "COLLECTIONS" | "FILTERS";
   includeDrafts?: boolean;
   pricingMode?: "DEFAULT_VARIANT_PRICE" | "MIN_MAX_RANGE" | "VARIANT_TABLE";
+  currencyPrefix?: string;
   layoutType?: "GRID" | "ONE_PER_PAGE";
   gridColumns?: 2 | 3 | 4;
   grouping?: "NONE" | "COLLECTION" | "VENDOR" | "PRODUCT_TYPE";
@@ -44,6 +45,7 @@ type ExportSettings = {
     textColor?: string;
     currencyPrefix?: string;
   };
+  productIds?: string[];
   collectionIds?: string[];
   filters?: {
     vendor?: string[];
@@ -304,6 +306,11 @@ function buildProductQuery(settings: ExportSettings, includeDrafts: boolean) {
 
   if (settings.scopeType === "COLLECTIONS" && settings.collectionIds?.length) {
     const ids = settings.collectionIds.map((id) => `collection_id:${escapeQuery(id)}`);
+    clauses.push(`(${ids.join(" OR ")})`);
+  }
+
+  if (settings.scopeType === "PRODUCTS" && settings.productIds?.length) {
+    const ids = settings.productIds.map((id) => `id:${escapeQuery(id)}`);
     clauses.push(`(${ids.join(" OR ")})`);
   }
 
@@ -784,7 +791,7 @@ async function buildImagesZip(params: {
       const sourceBytes = await localStorageAdapter.read(record.localCoverPath);
       const priceText = formatPrice(
         record.price,
-        params.settings.priceOverlay?.currencyPrefix
+        params.settings.priceOverlay?.currencyPrefix ?? params.settings.currencyPrefix
       );
       const extension = path.extname(record.localCoverPath);
       const outputBytes = await applyPriceOverlay({
@@ -983,7 +990,7 @@ async function buildPdf(params: {
 
   const pageSize = params.settings.pageSize ?? "A4";
   const [pageWidth, pageHeight] = pageSize === "LETTER" ? [612, 792] : [595, 842];
-  const currencyPrefix = params.settings.priceOverlay?.currencyPrefix;
+  const currencyPrefix = params.settings.currencyPrefix;
 
   const layout = params.settings.layoutType ?? "GRID";
   const columns = params.settings.gridColumns ?? 3;

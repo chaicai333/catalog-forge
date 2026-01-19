@@ -20,7 +20,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
       jobId,
       job: { shopId: shop.id },
       type: type as "PDF" | "IMAGES_ZIP" | "MANIFEST"
-    }
+    },
+    include: { job: true }
   });
 
   if (!file) {
@@ -31,14 +32,25 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   return new Response(bytes, {
     headers: {
       "Content-Type": file.contentType ?? "application/octet-stream",
-      "Content-Disposition": `attachment; filename=\"${defaultFileName(type)}\"`
+      "Content-Disposition": `attachment; filename=\"${defaultFileName(
+        type,
+        file.job?.name ?? undefined
+      )}\"`
     }
   });
 }
 
-function defaultFileName(type: string) {
-  if (type === "PDF") return "catalog.pdf";
-  if (type === "IMAGES_ZIP") return "images.zip";
-  if (type === "MANIFEST") return "manifest.json";
-  return "download";
+function defaultFileName(type: string, jobName?: string | null) {
+  const base = sanitizeFileName(jobName) ?? "catalog";
+  if (type === "PDF") return `${base}.pdf`;
+  if (type === "IMAGES_ZIP") return `${base}-images.zip`;
+  if (type === "MANIFEST") return `${base}-manifest.json`;
+  return `${base}-download`;
+}
+
+function sanitizeFileName(value?: string | null) {
+  if (!value) return null;
+  const trimmed = value.trim().toLowerCase();
+  const slug = trimmed.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return slug.length > 0 ? slug : null;
 }

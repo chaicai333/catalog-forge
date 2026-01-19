@@ -63,6 +63,7 @@ function validatePayload(payload: unknown) {
   const gridColumns = typed.gridColumns;
   const watermarkEnabled = typed.watermarkEnabled;
   const watermarkText = typed.watermarkText;
+  const currencyPrefix = typed.currencyPrefix;
   const priceOverlay = typed.priceOverlay as
     | {
         enabled?: boolean;
@@ -85,6 +86,13 @@ function validatePayload(payload: unknown) {
     }
   }
 
+  if (scopeType === "PRODUCTS") {
+    const productIds = typed.productIds;
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      errors.push("Select at least one product.");
+    }
+  }
+
   if (layoutType === "GRID") {
     if (![2, 3, 4].includes(Number(gridColumns))) {
       errors.push("Grid columns must be 2, 3, or 4.");
@@ -93,6 +101,13 @@ function validatePayload(payload: unknown) {
 
   if (watermarkEnabled && (!watermarkText || String(watermarkText).trim().length === 0)) {
     errors.push("Watermark text is required when watermark is enabled.");
+  }
+
+  if (
+    currencyPrefix !== undefined &&
+    (typeof currencyPrefix !== "string" || currencyPrefix.length > 5)
+  ) {
+    errors.push("Currency prefix must be 5 characters or fewer.");
   }
 
   if (priceOverlay?.enabled) {

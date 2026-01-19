@@ -32,17 +32,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             legacyResourceId
           }
         }
+        products(first: 50, query: "status:active") {
+          nodes {
+            id
+            title
+            legacyResourceId
+          }
+        }
       }`
   );
 
   const jsonResponse = await response.json();
   const collections = jsonResponse?.data?.collections?.nodes ?? [];
+  const products = jsonResponse?.data?.products?.nodes ?? [];
 
-  return { collections };
+  return { collections, products };
 };
 
 export default function Index() {
-  const { collections } = useLoaderData<typeof loader>();
+  const { collections, products } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ jobId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,10 +60,12 @@ export default function Index() {
   const [scopeType, setScopeType] = useState("ALL_PRODUCTS");
   const [includeDrafts, setIncludeDrafts] = useState(false);
   const [collectionIds, setCollectionIds] = useState<string[]>([]);
+  const [productIds, setProductIds] = useState<string[]>([]);
   const [vendorFilters, setVendorFilters] = useState("");
   const [productTypeFilters, setProductTypeFilters] = useState("");
   const [tagFilters, setTagFilters] = useState("");
   const [pricingMode, setPricingMode] = useState("DEFAULT_VARIANT_PRICE");
+  const [currencyPrefix, setCurrencyPrefix] = useState("$");
   const [layoutType, setLayoutType] = useState("GRID");
   const [gridColumns, setGridColumns] = useState("3");
   const [grouping, setGrouping] = useState("NONE");
@@ -79,7 +89,9 @@ export default function Index() {
   const [overlayBgOpacity, setOverlayBgOpacity] = useState(0.55);
   const [overlayTextColor, setOverlayTextColor] = useState("#ffffff");
   const [overlayCurrencyPrefix, setOverlayCurrencyPrefix] = useState("$");
+  const [overlayCurrencyDirty, setOverlayCurrencyDirty] = useState(false);
   const previewRef = useRef<HTMLDivElement | null>(null);
+  const previewSize = 260;
 
   const isSubmitting =
     ["loading", "submitting"].includes(fetcher.state) &&
@@ -96,6 +108,12 @@ export default function Index() {
     ];
     return options;
   }, [scopeType]);
+
+  useEffect(() => {
+    if (!overlayCurrencyDirty) {
+      setOverlayCurrencyPrefix(currencyPrefix);
+    }
+  }, [currencyPrefix, overlayCurrencyDirty]);
 
   useEffect(() => {
     if (scopeType !== "COLLECTIONS" && grouping === "COLLECTION") {
@@ -122,7 +140,9 @@ export default function Index() {
               tag: splitList(tagFilters)
             }
           : undefined,
+      productIds: scopeType === "PRODUCTS" ? productIds : undefined,
       pricingMode,
+      currencyPrefix: currencyPrefix.trim() || undefined,
       layoutType,
       gridColumns: layoutType === "GRID" ? Number(gridColumns) : undefined,
       grouping,
@@ -141,7 +161,7 @@ export default function Index() {
         backgroundColor: overlayBgColor,
         backgroundOpacity: overlayBgOpacity,
         textColor: overlayTextColor,
-        currencyPrefix: overlayCurrencyPrefix
+        currencyPrefix: overlayCurrencyPrefix.trim() || undefined
       }
     };
 
@@ -195,7 +215,8 @@ export default function Index() {
                 options={[
                   { label: "All products", value: "ALL_PRODUCTS" },
                   { label: "Collections", value: "COLLECTIONS" },
-                  { label: "Filters", value: "FILTERS" }
+                  { label: "Filters", value: "FILTERS" },
+                  { label: "Manual selection", value: "PRODUCTS" }
                 ]}
                 value={scopeType}
                 onChange={setScopeType}
@@ -217,6 +238,28 @@ export default function Index() {
                       No collections found. Create a collection or switch to All Products.
                     </Text>
                   )}
+                </>
+              )}
+              {scopeType === "PRODUCTS" && (
+                <>
+                  <ChoiceList
+                    title="Products"
+                    allowMultiple
+                    choices={products.map((product: { legacyResourceId: string; title: string }) => ({
+                      label: product.title,
+                      value: String(product.legacyResourceId)
+                    }))}
+                    selected={productIds}
+                    onChange={setProductIds}
+                  />
+                  {products.length === 0 && (
+                    <Text as="p" tone="subdued">
+                      No products found. Switch scope or create products first.
+                    </Text>
+                  )}
+                  <Text as="p" tone="subdued">
+                    Manual selection shows up to 50 products. Refine in Shopify if needed.
+                  </Text>
                 </>
               )}
               {scopeType === "FILTERS" && (
@@ -268,6 +311,13 @@ export default function Index() {
                 ]}
                 value={pricingMode}
                 onChange={setPricingMode}
+              />
+              <TextField
+                label="Currency prefix"
+                value={currencyPrefix}
+                onChange={setCurrencyPrefix}
+                autoComplete="off"
+                helpText="Examples: $, RM, €"
               />
               <Select
                 label="Layout"
@@ -324,11 +374,10 @@ export default function Index() {
             <Text variant="headingMd" as="h2">
               Image ZIP price overlay
             </Text>
-            <ChoiceList
-              title="Enable overlay"
-              choices={[{ label: "Enable", value: "enabled" }]}
-              selected={overlayEnabled ? ["enabled"] : []}
-              onChange={(value) => setOverlayEnabled(value.includes("enabled"))}
+            <Checkbox
+              label="Enable overlay"
+              checked={overlayEnabled}
+              onChange={setOverlayEnabled}
             />
             {overlayEnabled && (
               <FormLayout>
@@ -340,6 +389,16 @@ export default function Index() {
                     autoComplete="off"
                     helpText="Hex color, e.g. #000000"
                   />
+                  <div>
+                    <Text as="p">Background picker</Text>
+                    <input
+                      aria-label="Background color picker"
+                      type="color"
+                      value={overlayBgColor}
+                      onChange={(event) => setOverlayBgColor(event.target.value)}
+                      style={{ width: "100%", height: "40px", border: "none", padding: 0 }}
+                    />
+                  </div>
                   <TextField
                     label="Text color"
                     value={overlayTextColor}
@@ -347,10 +406,23 @@ export default function Index() {
                     autoComplete="off"
                     helpText="Hex color, e.g. #ffffff"
                   />
+                  <div>
+                    <Text as="p">Text picker</Text>
+                    <input
+                      aria-label="Text color picker"
+                      type="color"
+                      value={overlayTextColor}
+                      onChange={(event) => setOverlayTextColor(event.target.value)}
+                      style={{ width: "100%", height: "40px", border: "none", padding: 0 }}
+                    />
+                  </div>
                   <TextField
                     label="Currency prefix"
                     value={overlayCurrencyPrefix}
-                    onChange={setOverlayCurrencyPrefix}
+                    onChange={(value) => {
+                      setOverlayCurrencyPrefix(value);
+                      setOverlayCurrencyDirty(true);
+                    }}
                     autoComplete="off"
                     helpText="Examples: $, RM, €"
                   />
@@ -374,7 +446,8 @@ export default function Index() {
                     ref={previewRef}
                     style={{
                       width: "100%",
-                      height: "260px",
+                      maxWidth: `${previewSize}px`,
+                      height: `${previewSize}px`,
                       borderRadius: "12px",
                       position: "relative",
                       overflow: "hidden",
@@ -400,7 +473,10 @@ export default function Index() {
                         alignItems: "center",
                         justifyContent: "center",
                         fontWeight: 600,
-                        fontSize: `${Math.max(12, Math.min(48, overlayRect.height * 260 * 0.5))}px`,
+                        fontSize: `${Math.max(
+                          12,
+                          Math.min(48, overlayRect.height * previewSize * 0.5)
+                        )}px`,
                         border: "1px dashed rgba(255,255,255,0.6)",
                         boxSizing: "border-box",
                         cursor: "move",

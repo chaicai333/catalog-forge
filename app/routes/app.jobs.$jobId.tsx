@@ -113,7 +113,8 @@ export default function JobDetail() {
                   handleDownload({
                     type: "PDF",
                     url: fileUrl(job.id, "PDF", location.search),
-                    setDownloading
+                    setDownloading,
+                    jobName: job.name ?? undefined
                   })
                 }
               >
@@ -126,7 +127,8 @@ export default function JobDetail() {
                   handleDownload({
                     type: "IMAGES_ZIP",
                     url: fileUrl(job.id, "IMAGES_ZIP", location.search),
-                    setDownloading
+                    setDownloading,
+                    jobName: job.name ?? undefined
                   })
                 }
               >
@@ -139,7 +141,8 @@ export default function JobDetail() {
                   handleDownload({
                     type: "MANIFEST",
                     url: fileUrl(job.id, "MANIFEST", location.search),
-                    setDownloading
+                    setDownloading,
+                    jobName: job.name ?? undefined
                   })
                 }
               >
@@ -256,6 +259,7 @@ async function handleDownload(params: {
   type: "PDF" | "IMAGES_ZIP" | "MANIFEST";
   url?: string;
   setDownloading: (value: string | null) => void;
+  jobName?: string;
 }) {
   if (!params.url) {
     return;
@@ -269,7 +273,7 @@ async function handleDownload(params: {
     const blob = await response.blob();
     const fileName =
       parseFileName(response.headers.get("content-disposition")) ??
-      defaultFileName(params.type);
+      defaultFileName(params.type, params.jobName);
     const href = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = href;
@@ -289,8 +293,16 @@ function parseFileName(contentDisposition: string | null) {
   return match?.[1] ?? null;
 }
 
-function defaultFileName(type: "PDF" | "IMAGES_ZIP" | "MANIFEST") {
-  if (type === "PDF") return "catalog.pdf";
-  if (type === "IMAGES_ZIP") return "images.zip";
-  return "manifest.json";
+function defaultFileName(type: "PDF" | "IMAGES_ZIP" | "MANIFEST", jobName?: string) {
+  const base = sanitizeFileName(jobName) ?? "catalog";
+  if (type === "PDF") return `${base}.pdf`;
+  if (type === "IMAGES_ZIP") return `${base}-images.zip`;
+  return `${base}-manifest.json`;
+}
+
+function sanitizeFileName(value?: string) {
+  if (!value) return null;
+  const trimmed = value.trim().toLowerCase();
+  const slug = trimmed.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return slug.length > 0 ? slug : null;
 }
