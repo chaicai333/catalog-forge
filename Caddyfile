@@ -1,3 +1,7 @@
+www.catalogforge.site {
+  redir https://catalogforge.site{uri}
+}
+
 catalogforge.site {
   reverse_proxy web:3000
 }
