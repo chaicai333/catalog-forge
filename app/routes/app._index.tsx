@@ -137,7 +137,7 @@ export default function Index() {
         title: product.title
       }));
       setSelectedProducts(next);
-      setProductIds(next.map((product) => product.id));
+      setProductIds(next.map((product) => toLegacyProductId(product.id) ?? product.id));
     } catch {
       // Picker dismissed.
     }
@@ -659,6 +659,11 @@ function buildEmbeddedQuery(search: string) {
 }
 
 type OverlayRect = { x: number; y: number; width: number; height: number };
+
+function toLegacyProductId(id: string) {
+  const match = /gid:\/\/shopify\/Product\/(\d+)/.exec(id);
+  return match?.[1] ?? null;
+}
 
 function startOverlayDrag(
   event: ReactPointerEvent,

@@ -310,7 +310,10 @@ function buildProductQuery(settings: ExportSettings, includeDrafts: boolean) {
   }
 
   if (settings.scopeType === "PRODUCTS" && settings.productIds?.length) {
-    const ids = settings.productIds.map((id) => `id:\"${escapeQuery(id)}\"`);
+    const ids = settings.productIds.map((id) => {
+      const legacy = extractLegacyProductId(id);
+      return `id:${legacy ?? escapeQuery(id)}`;
+    });
     clauses.push(`(${ids.join(" OR ")})`);
   }
 
@@ -336,6 +339,11 @@ function buildOrClause(field: string, values?: string[]) {
 
 function escapeQuery(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/\"/g, "\\\"");
+}
+
+function extractLegacyProductId(value: string) {
+  const match = /gid:\/\/shopify\/Product\/(\d+)/.exec(value);
+  return match?.[1] ?? null;
 }
 
 async function startBulkOperation(
