@@ -52,6 +52,7 @@ type ExportSettings = {
     productType?: string[];
     tag?: string[];
   };
+  variantRestrictions?: Record<string, string[]>;
 };
 
 type ProductVariant = {
@@ -576,8 +577,17 @@ async function fetchProductsPaginated(
 }
 
 function buildProductRecord(product: ProductAccumulator, settings: ExportSettings): ProductRecord {
+  let variants = product.variants;
+  const restrictions = settings.variantRestrictions;
+  const productId = product.id;
+  const legacyId = extractLegacyProductId(productId);
+  const allowedVariants = restrictions?.[legacyId ?? productId] ?? restrictions?.[productId];
+
+  if (allowedVariants && Array.isArray(allowedVariants) && allowedVariants.length > 0) {
+    variants = variants.filter((v) => allowedVariants.includes(v.id));
+  }
+
   const pricingMode = settings.pricingMode ?? "DEFAULT_VARIANT_PRICE";
-  const variants = product.variants;
   const defaultVariant = variants[0];
 
   let price: ProductRecord["price"] = null;
@@ -1348,8 +1358,12 @@ export function formatPrice(
     return `${prefix}${price.min} - ${prefix}${price.max}`;
   }
   if ("variants" in price) {
-    const first = price.variants[0];
-    return first?.price ? `${prefix}${first.price}` : null;
+    const range = buildVariantRange(price.variants);
+    if (!range) return null;
+    if (range.min === range.max) {
+      return `${prefix}${range.min}`;
+    }
+    return `${prefix}${range.min} - ${prefix}${range.max}`;
   }
   return null;
 }
@@ -1358,6 +1372,15 @@ function formatPriceValue(value: string | null, currencyPrefix?: string) {
   if (!value) return null;
   const prefix = currencyPrefix ?? "$";
   return `${prefix}${value}`;
+}
+
+function buildVariantRange(variants: { price: string | null }[]) {
+  const prices = variants.map((variant) => variant.price).filter(Boolean) as string[];
+  if (prices.length === 0) return null;
+  const numeric = prices.map((value) => Number(value));
+  const min = Math.min(...numeric);
+  const max = Math.max(...numeric);
+  return { min: String(min), max: String(max) };
 }
 
 function addDays(date: Date, days: number) {
