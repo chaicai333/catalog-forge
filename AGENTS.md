@@ -37,3 +37,6 @@
 - Key env vars: `SHOPIFY_APP_URL`, `DATABASE_URL`, `REDIS_HOST`, `REDIS_PORT`,
   `LOCAL_STORAGE_ROOT` (optional).
 - Deployments on Hetzner typically run web + worker + Postgres + Redis via Docker Compose.
+
+## Production Hosting (Hetzner)
+- Server: `178.156.166.115` (CPX11, x86, 40 GB, us-east)

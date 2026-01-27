@@ -64,6 +64,7 @@ function validatePayload(payload: unknown) {
   const watermarkEnabled = typed.watermarkEnabled;
   const watermarkText = typed.watermarkText;
   const currencyPrefix = typed.currencyPrefix;
+  const variantRestrictions = typed.variantRestrictions;
   const priceOverlay = typed.priceOverlay as
     | {
         enabled?: boolean;
@@ -74,6 +75,10 @@ function validatePayload(payload: unknown) {
         currencyPrefix?: string;
       }
     | undefined;
+
+  if (variantRestrictions !== undefined && (typeof variantRestrictions !== "object" || variantRestrictions === null)) {
+    errors.push("Variant restrictions must be a valid object.");
+  }
 
   if (grouping === "COLLECTION" && scopeType !== "COLLECTIONS") {
     errors.push("Grouping by collection requires scope type Collections.");
