@@ -998,7 +998,7 @@ async function buildPdf(params: {
   const pdf = await PDFDocument.create();
   let font = await pdf.embedFont(StandardFonts.Helvetica);
   try {
-    const fontPath = path.resolve(process.cwd(), "worker/assets/DejaVuSans.ttf");
+    const fontPath = path.resolve(process.cwd(), "assets/DejaVuSans.ttf");
     const fontBytes = await fsPromises.readFile(fontPath);
     pdf.registerFontkit(fontkit);
     font = await pdf.embedFont(fontBytes);
