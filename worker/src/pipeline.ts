@@ -807,16 +807,13 @@ async function buildImagesZip(params: {
     }
     try {
       const sourceBytes = await localStorageAdapter.read(record.localCoverPath);
-      const priceText = formatPrice(
-        record.price,
-        params.settings.priceOverlay?.currencyPrefix ?? params.settings.currencyPrefix
-      );
       const extension = path.extname(record.localCoverPath);
       const outputBytes = await applyPriceOverlay({
         bytes: sourceBytes,
-        priceText,
+        price: record.price,
         extension,
-        overlay: params.settings.priceOverlay
+        overlay: params.settings.priceOverlay,
+        currencyPrefix: params.settings.priceOverlay?.currencyPrefix ?? params.settings.currencyPrefix
       });
       archive.append(outputBytes, { name: record.coverFileName });
     } catch (error) {
@@ -846,11 +843,12 @@ async function buildImagesZip(params: {
 
 async function applyPriceOverlay(params: {
   bytes: Uint8Array;
-  priceText: string | null;
+  price: ProductRecord["price"];
   extension: string;
   overlay?: ExportSettings["priceOverlay"];
+  currencyPrefix?: string;
 }) {
-  if (!params.priceText || !params.overlay?.enabled) {
+  if (!params.price || !params.overlay?.enabled) {
     return params.bytes;
   }
 
@@ -859,21 +857,47 @@ async function applyPriceOverlay(params: {
   const width = metadata.width ?? 800;
   const height = metadata.height ?? 800;
   const resolved = resolveOverlayStyle(params.overlay, width, height);
-  const baseFontSize = Math.round(Math.max(12, resolved.height * 0.5));
-  const fontSize = fitFontSize(params.priceText, baseFontSize, resolved.width);
-  const svg = buildPriceOverlaySvg({
-    width,
-    height,
-    overlayX: resolved.x,
-    overlayY: resolved.y,
-    overlayWidth: resolved.width,
-    overlayHeight: resolved.height,
-    fontSize,
-    priceText: params.priceText,
-    backgroundColor: resolved.backgroundColor,
-    backgroundOpacity: resolved.backgroundOpacity,
-    textColor: resolved.textColor
-  });
+
+  // Check if price has variants for multi-line display
+  const isVariantTable = params.price && typeof params.price === "object" && "variants" in params.price;
+
+  let svg: string;
+  if (isVariantTable) {
+    const variants = (params.price as { variants: { title: string; price: string | null }[] }).variants;
+    svg = buildVariantOverlaySvg({
+      width,
+      height,
+      overlayX: resolved.x,
+      overlayY: resolved.y,
+      overlayWidth: resolved.width,
+      overlayHeight: resolved.height,
+      variants,
+      currencyPrefix: params.currencyPrefix,
+      backgroundColor: resolved.backgroundColor,
+      backgroundOpacity: resolved.backgroundOpacity,
+      textColor: resolved.textColor
+    });
+  } else {
+    const priceText = formatPrice(params.price, params.currencyPrefix);
+    if (!priceText) {
+      return params.bytes;
+    }
+    const baseFontSize = Math.round(Math.max(12, resolved.height * 0.5));
+    const fontSize = fitFontSize(priceText, baseFontSize, resolved.width);
+    svg = buildPriceOverlaySvg({
+      width,
+      height,
+      overlayX: resolved.x,
+      overlayY: resolved.y,
+      overlayWidth: resolved.width,
+      overlayHeight: resolved.height,
+      fontSize,
+      priceText,
+      backgroundColor: resolved.backgroundColor,
+      backgroundOpacity: resolved.backgroundOpacity,
+      textColor: resolved.textColor
+    });
+  }
 
   const composite = image.composite([{ input: Buffer.from(svg) }]);
   if (params.extension.toLowerCase() === ".png") {
@@ -944,6 +968,80 @@ function buildPriceOverlaySvg(params: {
     ${safeText}
   </text>
 </svg>`;
+}
+
+function buildVariantOverlaySvg(params: {
+  width: number;
+  height: number;
+  overlayX: number;
+  overlayY: number;
+  overlayWidth: number;
+  overlayHeight: number;
+  variants: { title: string; price: string | null }[];
+  currencyPrefix?: string;
+  backgroundColor: string;
+  backgroundOpacity: number;
+  textColor: string;
+}) {
+  const rgb = hexToRgb(params.backgroundColor) ?? { r: 0, g: 0, b: 0 };
+  const overlayFill = `rgba(${rgb.r},${rgb.g},${rgb.b},${params.backgroundOpacity})`;
+  const textColor = escapeSvgText(params.textColor);
+  const prefix = params.currencyPrefix ?? "$";
+  const clipId = "variant-clip";
+
+  // Calculate how many variants we can fit
+  const padding = 10;
+  const availableHeight = params.overlayHeight - padding * 2;
+  const lineHeight = Math.min(24, Math.max(14, availableHeight / 6)); // Dynamic line height
+  const maxVariants = Math.floor(availableHeight / lineHeight);
+  const displayVariants = params.variants.slice(0, maxVariants);
+  const hasMore = params.variants.length > maxVariants;
+
+  // Font size based on line height
+  const fontSize = Math.round(lineHeight * 0.65);
+  const priceFontSize = Math.round(fontSize * 1.1);
+
+  // Calculate text positions
+  const leftX = params.overlayX + padding;
+  const rightX = params.overlayX + params.overlayWidth - padding;
+  const startY = params.overlayY + padding + lineHeight * 0.7;
+
+  // Build variant text elements
+  const variantTexts = displayVariants.map((variant, index) => {
+    const y = startY + index * lineHeight;
+    const title = escapeSvgText(truncateText(variant.title, 25));
+    const price = variant.price ? escapeSvgText(`${prefix}${variant.price}`) : "";
+    return `
+    <text x="${leftX}" y="${y}" dominant-baseline="middle" text-anchor="start"
+      font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="${fontSize}" fill="${textColor}"
+      clip-path="url(#${clipId})">${title}</text>
+    <text x="${rightX}" y="${y}" dominant-baseline="middle" text-anchor="end"
+      font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="${priceFontSize}" font-weight="600" fill="${textColor}"
+      clip-path="url(#${clipId})">${price}</text>`;
+  }).join("");
+
+  // Add "and X more..." if truncated
+  const moreText = hasMore
+    ? `<text x="${leftX}" y="${startY + displayVariants.length * lineHeight}" dominant-baseline="middle" text-anchor="start"
+        font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="${fontSize * 0.85}" font-style="italic" fill="${textColor}" opacity="0.7"
+        clip-path="url(#${clipId})">+${params.variants.length - maxVariants} more</text>`
+    : "";
+
+  return `<svg width="${params.width}" height="${params.height}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="${clipId}">
+      <rect x="${params.overlayX}" y="${params.overlayY}" width="${params.overlayWidth}" height="${params.overlayHeight}" />
+    </clipPath>
+  </defs>
+  <rect x="${params.overlayX}" y="${params.overlayY}" width="${params.overlayWidth}" height="${params.overlayHeight}" fill="${overlayFill}" />
+  ${variantTexts}
+  ${moreText}
+</svg>`;
+}
+
+function truncateText(text: string, maxLength: number) {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength - 1) + "…";
 }
 
 function escapeSvgText(value: string) {
