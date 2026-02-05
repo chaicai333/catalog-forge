@@ -1006,10 +1006,16 @@ function buildVariantOverlaySvg(params: {
   const rightX = params.overlayX + params.overlayWidth - padding;
   const startY = params.overlayY + padding + lineHeight * 0.7;
 
+  // Calculate available width for title (reserve space for price)
+  const priceWidth = priceFontSize * 8; // Estimate ~8 chars for price like "RM1450.00"
+  const titleWidth = params.overlayWidth - padding * 2 - priceWidth - 20; // 20px gap between title and price
+  const charWidth = fontSize * 0.55; // Approximate character width
+  const maxTitleChars = Math.max(15, Math.floor(titleWidth / charWidth));
+
   // Build variant text elements
   const variantTexts = displayVariants.map((variant, index) => {
     const y = startY + index * lineHeight;
-    const title = escapeSvgText(truncateText(variant.title, 25));
+    const title = escapeSvgText(truncateText(variant.title, maxTitleChars));
     const price = variant.price ? escapeSvgText(`${prefix}${variant.price}`) : "";
     return `
     <text x="${leftX}" y="${y}" dominant-baseline="middle" text-anchor="start"
